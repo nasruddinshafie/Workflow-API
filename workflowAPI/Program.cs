@@ -1,6 +1,11 @@
 using Serilog;
 using workflowAPI.Extensions;
 using workflowAPI.Middleware;
+using workflowAPI.Services;
+using workflowAPI.Services.Callback;
+using workflowAPI.Services.Callback.ActionHandler;
+using workflowAPI.Services.Callback.WorkflowHandler;
+using WorkflowApi.Services.WorkflowHandlers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +39,27 @@ builder.Services.AddSwaggerGen(c =>
 
 // Add Workflow services
 builder.Services.AddWorkflowServices(builder.Configuration);
+
+// Add Callback services - SOLID implementation
+builder.Services.AddScoped<ICallbackHandler, CallbackHandler>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Add Identity service for dummy user/role data
+builder.Services.AddScoped<IIdentityService, IdentityService>();
+
+// Register all workflow handlers (Strategy Pattern)
+builder.Services.AddScoped<IWorkflowHandler, LeaveApprovalHandler>();
+builder.Services.AddScoped<IWorkflowHandler, PurchaseOrderHandler>();
+
+// Register handler factory (Factory Pattern)
+builder.Services.AddScoped<IWorkflowHandlerFactory, WorkflowHandlerFactory>();
+
+// Register all action handlers (Strategy Pattern)
+builder.Services.AddScoped<IActionHandler, LeaveApprovalActionHandler>();
+
+// Register action handler factory (Factory Pattern)
+builder.Services.AddScoped<IActionHandlerFactory, ActionHandlerFactory>();
+
 
 // Add CORS
 builder.Services.AddCors(options =>

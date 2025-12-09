@@ -28,7 +28,7 @@ namespace workflowAPI.Services
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
 
-        public async Task<CreateInstanceResponse> CreateInstanceAsync(string workflowType, string identityId, Dictionary<string, object> parameters)
+        public async Task<string> CreateInstanceAsync(string workflowType, string identityId, Dictionary<string, object> parameters)
         {
             var schemeCode = _schemeRegistry.GetActiveScheme(workflowType);
 
@@ -40,32 +40,54 @@ namespace workflowAPI.Services
 
             var ProcessId = Guid.NewGuid().ToString();
 
-            var request = new CreateInstanceRequest
-            {
-                SchemeCode = schemeCode,
-               
-                IdentityId = identityId,
-                Parameters = parameters
-            };
-
+            // Old OptimaJet API only sends schemeCode in body
+            var requestBody = new { schemeCode = schemeCode };
 
             var response = await _httpClient.PostAsJsonAsync(
                 $"/workflowapi/createinstance/{ProcessId}",
-                request);
+                requestBody);
 
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<CreateInstanceResponse>();
+            // Old OptimaJet API wraps response in { success, data, error, message }
+            var wrappedResult = await response.Content.ReadFromJsonAsync<OptimaJetApiResponse>();
 
-            if (result == null)
-                throw new Exception("Failed to deserialize create instance response");
+            if (wrappedResult == null)
+                throw new Exception("Failed to deserialize OptimaJet response");
+
+            if (!wrappedResult.Success)
+            {
+                var errorMsg = wrappedResult.Message ?? wrappedResult.Error ?? "Unknown error from Workflow Server";
+                _logger.LogError(
+                    "Failed to create workflow instance: {Error}",
+                    errorMsg);
+                throw new Exception($"Workflow Server error: {errorMsg}");
+            }
+
+            // Parse the data object into CreateInstanceResponse
+            var dataJson = JsonSerializer.Serialize(wrappedResult, _jsonOptions);
+
+            var result = JsonSerializer.Deserialize<CreateInstanceResponse>(dataJson, _jsonOptions);
+
+
+            if (!result.Success)
+                throw new Exception("Failed to deserialize workflow instance data");
 
             _logger.LogInformation(
                 "Created workflow instance {ProcessId} with scheme {SchemeCode}",
-                result.ProcessId,
+                ProcessId,
                 schemeCode);
 
-            return result;
+            return ProcessId;
+        }
+
+        // Internal class for OptimaJet old API response format
+        private class OptimaJetApiResponse
+        {
+            public bool Success { get; set; }
+            public object? Data { get; set; }
+            public string? Error { get; set; }
+            public string? Message { get; set; }
         }
 
         public async Task ExecuteCommandAsync(ExecuteCommandRequest request)
@@ -81,6 +103,23 @@ namespace workflowAPI.Services
                 request);
 
             response.EnsureSuccessStatusCode();
+
+            // Handle old OptimaJet API response format
+            var wrappedResult = await response.Content.ReadFromJsonAsync<OptimaJetApiResponse>();
+
+            if (wrappedResult == null)
+                throw new Exception("Failed to deserialize OptimaJet response");
+
+            if (!wrappedResult.Success)
+            {
+                var errorMsg = wrappedResult.Message ?? wrappedResult.Error ?? "Unknown error from Workflow Server";
+                _logger.LogError(
+                    "Failed to execute command {Command} on {ProcessId}: {Error}",
+                    request.Command,
+                    request.ProcessId,
+                    errorMsg);
+                throw new Exception($"Workflow Server error: {errorMsg}");
+            }
 
             _logger.LogInformation(
                 "Command {Command} executed successfully on {ProcessId}",
@@ -100,10 +139,28 @@ namespace workflowAPI.Services
 
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<CommandsResponse>();
+            // Handle old OptimaJet API response format
+            var wrappedResult = await response.Content.ReadFromJsonAsync<OptimaJetApiResponse>();
+
+            if (wrappedResult == null)
+                throw new Exception("Failed to deserialize OptimaJet response");
+
+            if (!wrappedResult.Success)
+            {
+                var errorMsg = wrappedResult.Message ?? wrappedResult.Error ?? "Unknown error from Workflow Server";
+                _logger.LogError(
+                    "Failed to get available commands for {ProcessId}: {Error}",
+                    processId,
+                    errorMsg);
+                throw new Exception($"Workflow Server error: {errorMsg}");
+            }
+
+            // Parse the data object into CommandsResponse
+            var dataJson = JsonSerializer.Serialize(wrappedResult.Data, _jsonOptions);
+            var result = JsonSerializer.Deserialize<CommandsResponse>(dataJson, _jsonOptions);
 
             if (result == null)
-                throw new Exception("Failed to deserialize commands response");
+                throw new Exception("Failed to deserialize commands data");
 
             _logger.LogDebug(
                 "Found {Count} available commands for {ProcessId}",
@@ -113,17 +170,38 @@ namespace workflowAPI.Services
             return result;
         }
 
-        public async Task<WorkflowInstanceResponse> GetInstanceAsync(string processId)
+        public async Task<GetInstanceInfoResponse> GetInstanceAsync(string processId)
         {
             _logger.LogInformation("Getting workflow instance {ProcessId}", processId);
 
-            var response = await _httpClient.GetAsync($"/workflowapi/instance/{processId}");
+            var requestBody = new { tenantId = "" };
+
+
+            var response = await _httpClient.PostAsJsonAsync($"/workflowapi/getinstanceinfo/{processId}", requestBody);
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<WorkflowInstanceResponse>();
+            // Handle old OptimaJet API response format
+            var wrappedResult = await response.Content.ReadFromJsonAsync<OptimaJetApiResponse>();
+
+            if (wrappedResult == null)
+                throw new Exception("Failed to deserialize OptimaJet response");
+
+            if (!wrappedResult.Success)
+            {
+                var errorMsg = wrappedResult.Message ?? wrappedResult.Error ?? "Unknown error from Workflow Server";
+                _logger.LogError(
+                    "Failed to get instance {ProcessId}: {Error}",
+                    processId,
+                    errorMsg);
+                throw new Exception($"Workflow Server error: {errorMsg}");
+            }
+
+            // Parse the data object into WorkflowInstanceResponse
+            var dataJson = JsonSerializer.Serialize(wrappedResult.Data, _jsonOptions);
+            var result = JsonSerializer.Deserialize<GetInstanceInfoResponse>(dataJson, _jsonOptions);
 
             if (result == null)
-                throw new Exception("Failed to deserialize instance response");
+                throw new Exception("Failed to deserialize instance data");
 
             _logger.LogDebug(
                 "Retrieved instance {ProcessId} in state {StateName}",

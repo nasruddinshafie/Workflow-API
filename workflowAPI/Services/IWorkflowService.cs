@@ -5,12 +5,12 @@ namespace workflowAPI.Services
 {
     public interface IWorkflowService
     {
-        Task<CreateInstanceResponse> CreateInstanceAsync(
+        Task<string> CreateInstanceAsync(
            string workflowType,
            string identityId,
            Dictionary<string, object> parameters);
 
-        Task<WorkflowInstanceResponse> GetInstanceAsync(string processId);
+        Task<GetInstanceInfoResponse> GetInstanceAsync(string processId);
 
         Task<CommandsResponse> GetAvailableCommandsAsync(
             string processId,

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 using workflowAPI.Models.DTOs;
 using workflowAPI.Models.Requests;
 using workflowAPI.Models.Responses;
@@ -43,13 +44,17 @@ namespace workflowAPI.Controllers
                 { "SubmittedDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") }
             };
 
-                var result = await _workflowService.CreateInstanceAsync(
+                var processId = await _workflowService.CreateInstanceAsync(
                     "PurchaseOrder",
                     request.RequestorId,
                     parameters);
 
-                return Ok(ApiResponse<string>.SuccessResponse(
-                    result.ProcessId,
+
+                var proccessInstances = await _workflowService.GetInstanceAsync(processId);
+
+
+                return Ok(ApiResponse<GetInstanceInfoResponse>.SuccessResponse(
+                    proccessInstances,
                     "Purchase order submitted successfully"));
             }
             catch (Exception ex)

@@ -46,13 +46,17 @@ namespace workflowAPI.Controllers
                 { "SubmittedDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") }
             };
 
-                var result = await _workflowService.CreateInstanceAsync(
+                var processId = await _workflowService.CreateInstanceAsync(
                     "LeaveApproval",
                     request.EmployeeId,
                     parameters);
 
-                return Ok(ApiResponse<string>.SuccessResponse(
-                    result.ProcessId,
+
+                var proccessInstances = await _workflowService.GetInstanceAsync(processId);
+
+
+                return Ok(ApiResponse<GetInstanceInfoResponse>.SuccessResponse(
+                    proccessInstances,
                     "Leave request submitted successfully"));
             }
             catch (Exception ex)
@@ -78,18 +82,18 @@ namespace workflowAPI.Controllers
 
                 var status = new LeaveStatusDto
                 {
-                    LeaveId = instance.ProcessId,
-                    EmployeeId = instance.Parameters.GetValueOrDefault("EmployeeId")?.ToString() ?? "",
-                    EmployeeName = instance.Parameters.GetValueOrDefault("EmployeeName")?.ToString() ?? "",
-                    StartDate = DateTime.Parse(instance.Parameters.GetValueOrDefault("StartDate")?.ToString() ?? DateTime.Now.ToString()),
-                    EndDate = DateTime.Parse(instance.Parameters.GetValueOrDefault("EndDate")?.ToString() ?? DateTime.Now.ToString()),
-                    TotalDays = int.Parse(instance.Parameters.GetValueOrDefault("TotalDays")?.ToString() ?? "0"),
-                    LeaveType = instance.Parameters.GetValueOrDefault("LeaveType")?.ToString() ?? "",
-                    Reason = instance.Parameters.GetValueOrDefault("Reason")?.ToString() ?? "",
-                    CurrentState = instance.StateName,
-                    SchemeVersion = instance.SchemeCode,
-                    CreatedDate = instance.CreatedDate,
-                    UpdatedDate = instance.UpdatedDate
+                    //LeaveId = instance.ProcessId,
+                    //EmployeeId = instance.Parameters.GetValueOrDefault("EmployeeId")?.ToString() ?? "",
+                    //EmployeeName = instance.Parameters.GetValueOrDefault("EmployeeName")?.ToString() ?? "",
+                    //StartDate = DateTime.Parse(instance.Parameters.GetValueOrDefault("StartDate")?.ToString() ?? DateTime.Now.ToString()),
+                    //EndDate = DateTime.Parse(instance.Parameters.GetValueOrDefault("EndDate")?.ToString() ?? DateTime.Now.ToString()),
+                    //TotalDays = int.Parse(instance.Parameters.GetValueOrDefault("TotalDays")?.ToString() ?? "0"),
+                    //LeaveType = instance.Parameters.GetValueOrDefault("LeaveType")?.ToString() ?? "",
+                    //Reason = instance.Parameters.GetValueOrDefault("Reason")?.ToString() ?? "",
+                    //CurrentState = instance.StateName,
+                    //SchemeVersion = instance.SchemeCode,
+                    //CreatedDate = instance.CreatedDate,
+                    //UpdatedDate = instance.UpdatedDate
                 };
 
                 return Ok(ApiResponse<LeaveStatusDto>.SuccessResponse(status));

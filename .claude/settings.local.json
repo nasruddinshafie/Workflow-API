@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"D:\\Nasruddin\\DotNet_Projects\\workflow-backend-api\\workflowAPI\" branch -v)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
