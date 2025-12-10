@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using workflowAPI.Data;
 using workflowAPI.Models.Callbacks.Events;
 using workflowAPI.Models.Callbacks.Requests;
 using workflowAPI.Models.Callbacks.Responses;
+using workflowAPI.Services;
 using workflowAPI.Services.Callback;
 
 namespace workflowAPI.Controllers
@@ -13,13 +13,16 @@ namespace workflowAPI.Controllers
     public class CallbackController : ControllerBase
     {
         private readonly ICallbackHandler _callbackHandler;
+        private readonly IIdentityService _identityService;
         private readonly ILogger<CallbackController> _logger;
 
         public CallbackController(
            ICallbackHandler callbackHandler,
+           IIdentityService identityService,
            ILogger<CallbackController> logger)
         {
             _callbackHandler = callbackHandler;
+            _identityService = identityService;
             _logger = logger;
         }
 
@@ -138,8 +141,8 @@ namespace workflowAPI.Controllers
             {
                 _logger.LogInformation("Received get identities callback");
 
-                // Get all user IDs from DummyIdentityData
-                var users = DummyIdentityData.GetAllUsers();
+                // Get all user IDs from database
+                var users = await _identityService.GetAllUsersAsync();
                 var identityIds = users.Select(u => u.Id).ToList();
 
                 var response = new GetIdentitiesResponse
@@ -182,11 +185,15 @@ namespace workflowAPI.Controllers
                     "Received check rule callback for identity {IdentityId}",
                     request.IdentityId);
 
-                // Get user from DummyIdentityData
-                var user = DummyIdentityData.GetUserById(request.IdentityId);
+                // Validate user exists and is active
+                bool ruleCheckResult = await _identityService.ValidateUserAsync(request.IdentityId);
 
-                // Validate rule - check if user exists and is active
-                bool ruleCheckResult = user != null && user.IsActive;
+
+                if (ruleCheckResult)
+                {
+                    ruleCheckResult = request.IdentityId == request.Parameter.ToString();
+                }
+
 
                 var response = new RuleCheckResponse
                 {

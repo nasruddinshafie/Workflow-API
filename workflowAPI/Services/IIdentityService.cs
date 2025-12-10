@@ -4,15 +4,15 @@ namespace workflowAPI.Services
 {
     public interface IIdentityService
     {
-        User? GetUserById(string userId);
-        User? GetUserByUsername(string username);
-        User? GetUserByEmail(string email);
-        List<User> GetAllUsers();
-        List<User> GetUsersByRole(Role role);
-        List<User> GetUsersByDepartment(string department);
-        User? GetManager(string userId);
-        List<User> GetDirectReports(string managerId);
-        bool ValidateUser(string userId);
-        bool HasRole(string userId, Role role);
+        Task<User?> GetUserByIdAsync(string userId);
+        Task<User?> GetUserByUsernameAsync(string username);
+        Task<User?> GetUserByEmailAsync(string email);
+        Task<List<User>> GetAllUsersAsync();
+        Task<List<User>> GetUsersByRoleAsync(Role role);
+        Task<List<User>> GetUsersByDepartmentAsync(string department);
+        Task<User?> GetManagerAsync(string userId);
+        Task<List<User>> GetDirectReportsAsync(string managerId);
+        Task<bool> ValidateUserAsync(string userId);
+        Task<bool> HasRoleAsync(string userId, Role role);
     }
 }

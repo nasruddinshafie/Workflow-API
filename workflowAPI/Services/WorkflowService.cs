@@ -40,8 +40,15 @@ namespace workflowAPI.Services
 
             var ProcessId = Guid.NewGuid().ToString();
 
+            // Convert parameters dictionary to array format expected by OptimaJet
+            var parameterArray = parameters.Select(p => new
+            {
+                Name = p.Key,
+                Value = p.Value
+            }).ToList();
+
             // Old OptimaJet API only sends schemeCode in body
-            var requestBody = new { schemeCode = schemeCode };
+            var requestBody = new { schemeCode = schemeCode , parameters = parameterArray, identityId = identityId };
 
             var response = await _httpClient.PostAsJsonAsync(
                 $"/workflowapi/createinstance/{ProcessId}",
@@ -98,9 +105,24 @@ namespace workflowAPI.Services
            request.ProcessId,
            request.IdentityId);
 
+            // Convert parameters dictionary to array format expected by OptimaJet
+            var parameterArray = request.Parameters?.Select(p => new
+            {
+                Name = p.Key,
+                Value = p.Value
+            }).ToList();
+
+            var requestBody = new
+            {
+                processId = request.ProcessId,
+                command = request.Command,
+                identityId = request.IdentityId,
+                parameters = parameterArray
+            };
+
             var response = await _httpClient.PostAsJsonAsync(
                 "/workflowapi/executecommand",
-                request);
+                requestBody);
 
             response.EnsureSuccessStatusCode();
 

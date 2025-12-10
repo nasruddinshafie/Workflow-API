@@ -21,18 +21,18 @@ namespace workflowAPI.Controllers
         }
 
         [HttpGet("users")]
-        public ActionResult<ApiResponse<List<User>>> GetAllUsers()
+        public async Task<ActionResult<ApiResponse<List<User>>>> GetAllUsers()
         {
             _logger.LogInformation("Getting all users");
-            var users = _identityService.GetAllUsers();
+            var users = await _identityService.GetAllUsersAsync();
             return Ok(ApiResponse<List<User>>.SuccessResponse(users));
         }
 
         [HttpGet("users/{userId}")]
-        public ActionResult<ApiResponse<User>> GetUserById(string userId)
+        public async Task<ActionResult<ApiResponse<User>>> GetUserById(string userId)
         {
             _logger.LogInformation("Getting user by ID: {UserId}", userId);
-            var user = _identityService.GetUserById(userId);
+            var user = await _identityService.GetUserByIdAsync(userId);
 
             if (user == null)
             {
@@ -43,10 +43,10 @@ namespace workflowAPI.Controllers
         }
 
         [HttpGet("users/username/{username}")]
-        public ActionResult<ApiResponse<User>> GetUserByUsername(string username)
+        public async Task<ActionResult<ApiResponse<User>>> GetUserByUsername(string username)
         {
             _logger.LogInformation("Getting user by username: {Username}", username);
-            var user = _identityService.GetUserByUsername(username);
+            var user = await _identityService.GetUserByUsernameAsync(username);
 
             if (user == null)
             {
@@ -57,10 +57,10 @@ namespace workflowAPI.Controllers
         }
 
         [HttpGet("users/email/{email}")]
-        public ActionResult<ApiResponse<User>> GetUserByEmail(string email)
+        public async Task<ActionResult<ApiResponse<User>>> GetUserByEmail(string email)
         {
             _logger.LogInformation("Getting user by email: {Email}", email);
-            var user = _identityService.GetUserByEmail(email);
+            var user = await _identityService.GetUserByEmailAsync(email);
 
             if (user == null)
             {
@@ -71,26 +71,26 @@ namespace workflowAPI.Controllers
         }
 
         [HttpGet("users/role/{role}")]
-        public ActionResult<ApiResponse<List<User>>> GetUsersByRole(Role role)
+        public async Task<ActionResult<ApiResponse<List<User>>>> GetUsersByRole(Role role)
         {
             _logger.LogInformation("Getting users by role: {Role}", role);
-            var users = _identityService.GetUsersByRole(role);
+            var users = await _identityService.GetUsersByRoleAsync(role);
             return Ok(ApiResponse<List<User>>.SuccessResponse(users));
         }
 
         [HttpGet("users/department/{department}")]
-        public ActionResult<ApiResponse<List<User>>> GetUsersByDepartment(string department)
+        public async Task<ActionResult<ApiResponse<List<User>>>> GetUsersByDepartment(string department)
         {
             _logger.LogInformation("Getting users by department: {Department}", department);
-            var users = _identityService.GetUsersByDepartment(department);
+            var users = await _identityService.GetUsersByDepartmentAsync(department);
             return Ok(ApiResponse<List<User>>.SuccessResponse(users));
         }
 
         [HttpGet("users/{userId}/manager")]
-        public ActionResult<ApiResponse<User>> GetManager(string userId)
+        public async Task<ActionResult<ApiResponse<User>>> GetManager(string userId)
         {
             _logger.LogInformation("Getting manager for user: {UserId}", userId);
-            var manager = _identityService.GetManager(userId);
+            var manager = await _identityService.GetManagerAsync(userId);
 
             if (manager == null)
             {
@@ -101,26 +101,26 @@ namespace workflowAPI.Controllers
         }
 
         [HttpGet("users/{managerId}/direct-reports")]
-        public ActionResult<ApiResponse<List<User>>> GetDirectReports(string managerId)
+        public async Task<ActionResult<ApiResponse<List<User>>>> GetDirectReports(string managerId)
         {
             _logger.LogInformation("Getting direct reports for manager: {ManagerId}", managerId);
-            var reports = _identityService.GetDirectReports(managerId);
+            var reports = await _identityService.GetDirectReportsAsync(managerId);
             return Ok(ApiResponse<List<User>>.SuccessResponse(reports));
         }
 
         [HttpGet("users/{userId}/validate")]
-        public ActionResult<ApiResponse<bool>> ValidateUser(string userId)
+        public async Task<ActionResult<ApiResponse<bool>>> ValidateUser(string userId)
         {
             _logger.LogInformation("Validating user: {UserId}", userId);
-            var isValid = _identityService.ValidateUser(userId);
+            var isValid = await _identityService.ValidateUserAsync(userId);
             return Ok(ApiResponse<bool>.SuccessResponse(isValid));
         }
 
         [HttpGet("users/{userId}/has-role/{role}")]
-        public ActionResult<ApiResponse<bool>> HasRole(string userId, Role role)
+        public async Task<ActionResult<ApiResponse<bool>>> HasRole(string userId, Role role)
         {
             _logger.LogInformation("Checking if user {UserId} has role {Role}", userId, role);
-            var hasRole = _identityService.HasRole(userId, role);
+            var hasRole = await _identityService.HasRoleAsync(userId, role);
             return Ok(ApiResponse<bool>.SuccessResponse(hasRole));
         }
     }
