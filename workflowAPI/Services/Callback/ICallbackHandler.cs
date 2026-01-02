@@ -13,9 +13,8 @@ namespace workflowAPI.Services.Callback
         Task HandleActivityChangedAsync(ProcessActivityChangedRequest callback);
         Task<ExecuteActionResponse> HandleActionExecutedAsync(ExecuteActionRequest callback);
         Task<GetActionResponse> GetAvailableActionsAsync(string schemeCode);
-
-
-
-        
+        Task<GetConditionResponse> GetAvailableConditionAsync(string schemeCode);
+        Task<ExecuteConditionResponse> HandleConditionExecutedAsync(ExecuteConditionRequest callback);
+        Task HandleProcessLogAsync(ProcessLogsRequest request);
     }
 }

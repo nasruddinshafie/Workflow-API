@@ -1,5 +1,7 @@
-﻿using workflowAPI.Models.Callbacks;
+﻿using workflowAPI.Data.UnitOfWork;
+using workflowAPI.Models.Callbacks;
 using workflowAPI.Models.Callbacks.Events;
+using workflowAPI.Models.Entities;
 
 namespace workflowAPI.Services.Callback.WorkflowHandler
 {
@@ -7,15 +9,18 @@ namespace workflowAPI.Services.Callback.WorkflowHandler
     {
         private readonly ILogger<LeaveApprovalHandler> _logger;
         private readonly INotificationService _notificationService;
+        private readonly IUnitOfWork _unitOfWork;
 
         public string WorkflowType => "LeaveApproval";
 
         public LeaveApprovalHandler(
            ILogger<LeaveApprovalHandler> logger,
-           INotificationService notificationService)
+           INotificationService notificationService,
+           IUnitOfWork unitOfWork)
         {
             _logger = logger;
             _notificationService = notificationService;
+            _unitOfWork = unitOfWork;
         }
 
 
@@ -25,10 +30,88 @@ namespace workflowAPI.Services.Callback.WorkflowHandler
         public async Task HandleActivityChangedAsync(ProcessActivityChangedRequest callback)
         {
             _logger.LogInformation(
-               "Leave approval activity changed: {ProcessId}",
-               callback.ProcessId);
+               "Leave approval activity changed: {ProcessId} - {PreviousActivity} → {CurrentActivity}",
+               callback.ProcessId,
+               callback.previousActivityName,
+               callback.currentActivityName);
 
-            await Task.CompletedTask;
+            try
+            {
+                var processInstance = ProcessInstanceHelper.Deserialize(callback.ProcessInstance)!;
+
+                // Get LeaveRequestId from ProcessParameters
+                var leaveRequestId = ProcessInstanceHelper.GetParameter<string>(processInstance, "LeaveRequestId");
+
+                if (string.IsNullOrEmpty(leaveRequestId))
+                {
+                    _logger.LogWarning("LeaveRequestId not found in ProcessParameters for process {ProcessId}", callback.ProcessId);
+                    return;
+                }
+
+                // Get leave request from database
+                var leaveRequest = await _unitOfWork.Leaves.GetByLeaveRequestIdAsync(leaveRequestId);
+
+                if (leaveRequest == null)
+                {
+                    _logger.LogWarning("Leave request not found: {LeaveRequestId}", leaveRequestId);
+                    return;
+                }
+
+                // Map activity name to leave status
+                var newStatus = MapActivityToStatus(callback.currentActivityName);
+
+                if (newStatus.HasValue && leaveRequest.Status != newStatus.Value)
+                {
+                    var oldStatus = leaveRequest.Status;
+                    leaveRequest.Status = newStatus.Value;
+                    leaveRequest.CurrentWorkflowState = newStatus.ToString();
+
+                    // Update relevant dates based on status
+                    switch (newStatus.Value)
+                    {
+                        case LeaveRequestStatus.ManagerSigning:
+                            leaveRequest.SubmittedDate = DateTime.UtcNow;
+                            break;
+                        case LeaveRequestStatus.HRSigning:
+                            leaveRequest.SubmittedDate = DateTime.UtcNow;
+                            break;
+                        case LeaveRequestStatus.Approved:
+                            leaveRequest.ApprovedDate = DateTime.UtcNow;
+                            break;
+                        case LeaveRequestStatus.Rejected:
+                            leaveRequest.RejectedDate = DateTime.UtcNow;
+                            break;
+                    }
+
+                    _unitOfWork.Leaves.Update(leaveRequest);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    _logger.LogInformation(
+                        "Leave request {LeaveRequestId} status updated: {OldStatus} → {NewStatus} (Activity: {Activity})",
+                        leaveRequestId,
+                        oldStatus,
+                        newStatus.Value,
+                        callback.currentActivityName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling activity changed for process {ProcessId}", callback.ProcessId);
+            }
+        }
+
+        private LeaveRequestStatus? MapActivityToStatus(string activityName)
+        {
+            return activityName switch
+            {
+                "LeaveRequestCreated" => LeaveRequestStatus.LeaveRequestCreated,
+                "ManagerSigning"=> LeaveRequestStatus.ManagerSigning,
+                "HRSigning" => LeaveRequestStatus.HRSigning,
+                "Approved" or "final" => LeaveRequestStatus.Approved,
+                "Rejected" => LeaveRequestStatus.Rejected,
+                "Cancel" => LeaveRequestStatus.Cancelled,
+                _ => null
+            };
         }
 
         public async Task HandleStatusChangedAsync(ProcessStatusChangedRequest callback)

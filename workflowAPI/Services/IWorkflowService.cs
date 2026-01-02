@@ -8,6 +8,7 @@ namespace workflowAPI.Services
         Task<string> CreateInstanceAsync(
            string workflowType,
            string identityId,
+           string leaveRequestId,
            Dictionary<string, object> parameters);
 
         Task<GetInstanceInfoResponse> GetInstanceAsync(string processId);
@@ -21,5 +22,8 @@ namespace workflowAPI.Services
         Task<List<WorkflowInstanceResponse>> GetInstancesBySchemeAsync(
             string schemeCode,
             int limit = 100);
+
+        Task WriteLogAsync(string message, Dictionary<string, object>? additionalParameters = null);
+
     }
 }

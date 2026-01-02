@@ -229,30 +229,82 @@ namespace workflowAPI.Controllers
 
 
         /// <summary>
-        /// Execute Condition Callback
-        /// Called to check if condition is true
-        /// Configure in Workflow Server: executecondition → /api/callback/execute-condition
+        /// Process Log Callback
+        /// Called to write process logs
+        /// Configure in Workflow Server: processlog → /api/callback/process-log
         /// </summary>
-        //[HttpPost("execute-condition")]
-        //public async Task<IActionResult> ExecuteCondition([FromBody] ExecuteConditionRequest callback)
-        //{
-        //    try
-        //    {
-        //        _logger.LogInformation(
-        //            "Received execute condition callback: {ConditionName} for process {ProcessId}",
-        //            callback.Name,
-        //            callback.ProcessInstance);
+        [HttpPost("process-log")]
+        public async Task<IActionResult> ProcessLog([FromBody] ProcessLogsRequest request)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Received process log callback with {LogCount} log entries",
+                    request.ProcessLogs.Count);
 
-        //        var result = await _callbackHandler.Han(callback);
+                await _callbackHandler.HandleProcessLogAsync(request);
 
-        //        return Ok(result);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error handling execute condition callback");
-        //        return StatusCode(500, new { result = false, message = ex.Message });
-        //    }
-        //}
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling process log callback");
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Get Conditions Callback
+        /// Called to get available condition for a process
+        /// Configure in Workflow Server: getcondition → /api/callback/get-conditions
+        /// </summary>
+        [HttpGet("get-conditions")]
+        public async Task<IActionResult> GetConditions(string SchemeCode)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Received get conditions callback for scheme code {SchemeCode}",
+                    SchemeCode);
+
+                var conditions = await _callbackHandler.GetAvailableConditionAsync(SchemeCode);
+
+                return Ok(conditions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling get actions callback");
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+
+
+        // <summary>
+        // Execute Condition Callback
+        // Called to check if condition is true
+        // Configure in Workflow Server: executecondition → /api/callback/execute-condition
+        // </summary>
+        [HttpPost("execute-condition")]
+        public async Task<IActionResult> ExecuteCondition([FromBody] ExecuteConditionRequest callback)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Received execute condition callback: {ConditionName} for process {ProcessId}",
+                    callback.Name,
+                    callback.ProcessInstance);
+
+                var result = await _callbackHandler.HandleConditionExecutedAsync(callback);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling execute condition callback");
+                return StatusCode(500, new { result = false, message = ex.Message });
+            }
+        }
 
 
         /// <summary>

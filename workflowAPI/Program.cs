@@ -8,6 +8,7 @@ using workflowAPI.Middleware;
 using workflowAPI.Services;
 using workflowAPI.Services.Callback;
 using workflowAPI.Services.Callback.ActionHandler;
+using workflowAPI.Services.Callback.ConditionHandler;
 using workflowAPI.Services.Callback.WorkflowHandler;
 using WorkflowApi.Services.WorkflowHandlers;
 
@@ -102,6 +103,13 @@ builder.Services.AddScoped<IActionHandler, LeaveApprovalActionHandler>();
 // Register action handler factory (Factory Pattern)
 builder.Services.AddScoped<IActionHandlerFactory, ActionHandlerFactory>();
 
+// Register all condition handlers (Strategy Pattern)
+
+builder.Services.AddScoped<IConditionHandler, LeaveApprovalConditionHandler>();
+
+// Register condition handler factory (Factory Pattern)
+
+builder.Services.AddScoped<IConditionHandlerFactory, ConditionHandlerFactory>();
 
 // Add CORS
 builder.Services.AddCors(options =>

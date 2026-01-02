@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using workflowAPI.Models.DTOs;
+using workflowAPI.Models.Entities;
 using workflowAPI.Models.Requests;
 using workflowAPI.Models.Responses;
 using workflowAPI.Services;
@@ -31,6 +32,177 @@ namespace workflowAPI.Controllers
             _logger = logger;
         }
 
+
+        /// <summary>
+        /// Get current user's leave requests with available commands from workflow server
+        /// </summary>
+        [HttpGet("my-requests/{userId}")]
+        [ProducesResponseType(typeof(ApiResponse<List<object>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<List<object>>), 500)]
+        public async Task<ActionResult<ApiResponse<List<object>>>> GetMyRequests(string userId)
+        {
+            try
+            {
+                var userLeaves = await _leaveService.GetUserLeavesAsync(userId);
+
+                var leaveList = new List<object>();
+
+                foreach (var leave in userLeaves)
+                {
+                    // Get available commands from workflow server for this request
+                    List<CommandResponse>? availableCommands = null;
+                    if (!string.IsNullOrEmpty(leave.WorkflowProcessId))
+                    {
+                        try
+                        {
+                            var commandsResponse = await _workflowService.GetAvailableCommandsAsync(
+                                leave.WorkflowProcessId,
+                                userId);
+                            availableCommands = commandsResponse.Commands;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to get available commands for process {ProcessId}", leave.WorkflowProcessId);
+                            // Continue without commands if workflow server is unavailable
+                            availableCommands = new List<CommandResponse>();
+                        }
+                    }
+
+                    // Get user's leave balance for this leave type
+                    var balance = await _leaveBalanceService.GetBalanceAsync(
+                        leave.UserId,
+                        leave.LeaveTypeCode,
+                        leave.StartDate.Year);
+
+                    var commandsList = availableCommands != null
+                        ? availableCommands.Select(c => new
+                        {
+                            commandName = c.CommandName,
+                            localizedName = c.LocalizedName
+                        }).Cast<object>().ToList()
+                        : new List<object>();
+
+                    leaveList.Add(new
+                    {
+                        leaveRequestId = leave.LeaveRequestId,
+                        employeeId = leave.UserId,
+                        employeeName = leave.UserFullName,
+                        leaveType = leave.LeaveTypeName,
+                        leaveTypeCode = leave.LeaveTypeCode,
+                        leaveTypeColor = leave.LeaveTypeColor,
+                        startDate = leave.StartDate.ToString("yyyy-MM-dd"),
+                        endDate = leave.EndDate.ToString("yyyy-MM-dd"),
+                        totalDays = leave.TotalDays,
+                        reason = leave.Reason,
+                        status = leave.Status,
+                        submittedDate = leave.SubmittedDate?.ToString("yyyy-MM-dd HH:mm:ss"),
+                        workflowProcessId = leave.WorkflowProcessId,
+                        availableCommands = commandsList,
+                        balance = balance != null ? new
+                        {
+                            totalDays = balance.TotalDays,
+                            usedDays = balance.UsedDays,
+                            pendingDays = balance.PendingDays,
+                            availableDays = balance.AvailableDays
+                        } : null
+                    });
+                }
+
+                return Ok(ApiResponse<List<object>>.SuccessResponse(leaveList, "User leave requests retrieved successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get leave requests for user {UserId}", userId);
+                return StatusCode(500, ApiResponse<List<object>>.ErrorResponse(ex.Message));
+            }
+        }
+
+        /// <summary>
+        /// Get pending approvals for a manager or all leave requests for HR with available commands from workflow server
+        /// </summary>
+        [HttpGet("pending-approvals/{approverId}")]
+        [ProducesResponseType(typeof(ApiResponse<List<object>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<List<object>>), 500)]
+        public async Task<ActionResult<ApiResponse<List<object>>>> GetPendingApprovals(string approverId)
+        {
+            try
+            {
+                // Check if approver is HR
+                var approver = await _identityService.GetUserByIdAsync(approverId);
+                if (approver == null)
+                {
+                    return NotFound(ApiResponse<List<object>>.ErrorResponse("Approver not found"));
+                }
+
+                List<LeaveRequestEntity> pendingLeaves;
+
+                // If HR role, get all leave requests
+                if (approver.Roles.Contains(Models.Identity.Role.HRManager))
+                {
+                    _logger.LogInformation("HR user {ApproverId} requesting all leave requests", approverId);
+                    pendingLeaves = await _leaveService.GetPendingLeavesAsync();
+                }
+                else
+                {
+                    // For managers, get only their assigned pending approvals
+                    _logger.LogInformation("Manager {ApproverId} requesting pending approvals", approverId);
+                    pendingLeaves = await _leaveService.GetPendingApprovalsAsync(approverId);
+                }
+
+                var leaveList = new List<object>();
+
+                foreach (var leave in pendingLeaves)
+                {
+                    // Get available commands from workflow server for this request
+                    List<CommandResponse>? availableCommands = null;
+                    if (!string.IsNullOrEmpty(leave.WorkflowProcessId))
+                    {
+                        try
+                        {
+                            var commandsResponse = await _workflowService.GetAvailableCommandsAsync(
+                                leave.WorkflowProcessId,
+                                approverId);
+                            availableCommands = commandsResponse.Commands;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to get available commands for leave {LeaveRequestId}", leave.LeaveRequestId);
+                        }
+                    }
+
+                    leaveList.Add(new
+                    {
+                        leave.Id,
+                        leaveRequestId = leave.LeaveRequestId,
+                        workflowProcessId = leave.WorkflowProcessId,
+                        employeeId = leave.UserId,
+                        employeeName = leave.User?.FullName ?? "Unknown",
+                        employeeEmail = leave.User?.Email ?? "",
+                        employeeDepartment = leave.User?.Department ?? "",
+                        leaveType = leave.LeaveType?.Name ?? "",
+                        leaveTypeCode = leave.LeaveType?.Code ?? "",
+                        leaveTypeColor = leave.LeaveType?.Color,
+                        startDate = leave.StartDate,
+                        endDate = leave.EndDate,
+                        totalDays = leave.TotalDays,
+                        reason = leave.Reason,
+                        status = leave.Status.ToString(),
+                        currentWorkflowState = leave.CurrentWorkflowState,
+                        submittedDate = leave.SubmittedDate,
+                        availableCommands = availableCommands
+                    });
+                }
+
+                _logger.LogInformation("Retrieved {Count} pending approvals for {ApproverId}", leaveList.Count, approverId);
+
+                return Ok(ApiResponse<List<object>>.SuccessResponse(leaveList, $"{leaveList.Count} pending approvals found"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get pending approvals for {ApproverId}", approverId);
+                return StatusCode(500, ApiResponse<List<object>>.ErrorResponse(ex.Message));
+            }
+        }
 
         /// <summary>
         /// Get user's manager
@@ -119,30 +291,79 @@ namespace workflowAPI.Controllers
                     year,
                     totalDays);
 
-                // Step 5: Create workflow instance
+                // Step 5: Get all HR users for approval
+                var hrUsers = await _identityService.GetUsersByRoleAsync(Models.Identity.Role.HRManager);
+                var hrApproverIds = string.Join(",", hrUsers.Select(u => u.Id));
+                var hrApproverNames = string.Join(",", hrUsers.Select(u => u.FullName));
+
+                _logger.LogInformation(
+                    "Found {HRCount} HR approvers for leave request: {HRApproverNames}",
+                    hrUsers.Count,
+                    hrApproverNames);
+
+                // Step 6: Create workflow instance
                 var parameters = new Dictionary<string, object>
                 {
+                    {"LeaveRequestId", leaveRequest.LeaveRequestId },
                     { "EmployeeId", request.EmployeeId },
                     { "EmployeeName", request.EmployeeName },
                     { "StartDate", request.StartDate.ToString("yyyy-MM-dd") },
                     { "EndDate", request.EndDate.ToString("yyyy-MM-dd") },
                     { "TotalDays", totalDays },
-                    { "LeaveType", request.LeaveType },
+                    { "LeaveTypeCode", request.LeaveType },
                     { "Reason", request.Reason },
                     { "ManagerIdentity", request.SelectedApproverId },
                     { "SelectedApproverName", manager.FullName },
+                    { "HRApproverIdentities", hrApproverIds },
+                    { "HRApproverNames", hrApproverNames },
+                    { "HRApproverCount", hrUsers.Count },
                     { "SubmittedDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") }
                 };
 
                 var processId = await _workflowService.CreateInstanceAsync(
                     "LeaveApproval",
                     request.EmployeeId,
+                    leaveRequest.LeaveRequestId,
                     parameters);
 
-                // Step 6: Link database record with workflow ProcessId
-                await _leaveService.SyncWithWorkflowAsync(leaveRequest.LeaveRequestId, processId, "Pending");
-
+                // Step 7: Get instance info to retrieve current state
                 var processInstance = await _workflowService.GetInstanceAsync(processId);
+
+                // Step 8: Map workflow state to leave status
+                var leaveStatus = MapStateToStatus(processInstance.StateName ?? "Draft");
+
+                // Step 9: Update leave status based on workflow state
+                if (leaveStatus.HasValue)
+                {
+                    await _leaveService.UpdateLeaveStatusAsync(leaveRequest.LeaveRequestId, leaveStatus.Value);
+                }
+
+                // Step 10: Link database record with workflow ProcessId and current state
+                await _leaveService.SyncWithWorkflowAsync(
+                    leaveRequest.LeaveRequestId,
+                    processId,
+                    processInstance.StateName ?? "Draft");
+
+                // Write log to Workflow Server
+                await _workflowService.WriteLogAsync(
+                    $"Leave request submitted by {request.EmployeeName} with Manager and {hrUsers.Count} HR approver(s)",
+                    new Dictionary<string, object>
+                    {
+                        { "LeaveRequestId", leaveRequest.LeaveRequestId },
+                        { "EmployeeId", request.EmployeeId },
+                        { "EmployeeName", request.EmployeeName },
+                        { "LeaveType", request.LeaveType },
+                        { "StartDate", request.StartDate },
+                        { "EndDate", request.EndDate },
+                        { "TotalDays", totalDays },
+                        { "ManagerId", request.SelectedApproverId },
+                        { "ManagerName", manager.FullName },
+                        { "HRApproverIds", hrApproverIds },
+                        { "HRApproverNames", hrApproverNames },
+                        { "HRCount", hrUsers.Count },
+                        { "CurrentState", processInstance.StateName },
+                        { "SubmittedDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") }
+                    });
 
                 _logger.LogInformation("Leave request submitted successfully. LeaveRequestId: {LeaveRequestId}, ProcessId: {ProcessId}",
                     leaveRequest.LeaveRequestId, processId);
@@ -233,7 +454,7 @@ namespace workflowAPI.Controllers
 
                 // Step 2: Update leave request status in database
                 var newStatus = request.Approved
-                    ? Models.Entities.LeaveRequestStatus.ManagerApproved
+                    ? Models.Entities.LeaveRequestStatus.Approved
                     : Models.Entities.LeaveRequestStatus.Rejected;
                 await _leaveService.UpdateLeaveStatusAsync(leaveId, newStatus);
 
@@ -378,6 +599,66 @@ namespace workflowAPI.Controllers
         }
 
         /// <summary>
+        /// Execute a workflow command on a leave request
+        /// </summary>
+        [HttpPost("{leaveId}/execute-command")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+        public async Task<ActionResult<ApiResponse<object>>> ExecuteCommand(
+            string leaveId,
+            [FromBody] ExecuteCommandRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(request.Command))
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Command is required"));
+                }
+
+                if (string.IsNullOrEmpty(request.IdentityId))
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Identity ID is required"));
+                }
+
+                // Set the ProcessId to the leaveId if not provided
+                if (string.IsNullOrEmpty(request.ProcessId))
+                {
+                    request.ProcessId = leaveId;
+                }
+
+                // Execute workflow command
+                await _workflowService.ExecuteCommandAsync(request);
+
+                // Write log to Workflow Server
+                await _workflowService.WriteLogAsync(
+                    $"Command '{request.Command}' executed on leave request {leaveId}",
+                    new Dictionary<string, object>
+                    {
+                        { "LeaveRequestId", leaveId },
+                        { "Command", request.Command },
+                        { "ExecutedBy", request.IdentityId },
+                        { "Timestamp", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") }
+                    });
+
+                // Get the updated leave request to check status
+                var leaveRequest = await _leaveService.GetLeaveRequestAsync(leaveId);
+
+                _logger.LogInformation(
+                    "Command {Command} executed on leave request {LeaveId} by {IdentityId}",
+                    request.Command, leaveId, request.IdentityId);
+
+                return Ok(ApiResponse<object>.SuccessResponse($"Command '{request.Command}' executed successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to execute command {Command} on leave {LeaveId}",
+                    request.Command, leaveId);
+                return StatusCode(500, ApiResponse<object>.ErrorResponse(ex.Message));
+            }
+        }
+
+        /// <summary>
         /// Cancel leave request (by employee)
         /// </summary>
         [HttpPost("{leaveId}/cancel")]
@@ -427,6 +708,24 @@ namespace workflowAPI.Controllers
                 _logger.LogError(ex, "Failed to cancel leave {LeaveId}", leaveId);
                 return StatusCode(500, ApiResponse<bool>.ErrorResponse(ex.Message));
             }
+        }
+
+        /// <summary>
+        /// Map workflow state name to leave request status
+        /// </summary>
+         private LeaveRequestStatus? MapStateToStatus(string activityName)
+        {
+            return activityName switch
+            {
+                "LeaveRequestCreated" => LeaveRequestStatus.LeaveRequestCreated,
+
+                "ManagerSigning"=> LeaveRequestStatus.ManagerSigning,
+                "HRSigning" => LeaveRequestStatus.HRSigning,
+                "Approved" or "final" => LeaveRequestStatus.Approved,
+                "Rejected" => LeaveRequestStatus.Rejected,
+                "Cancelled" => LeaveRequestStatus.Cancelled,
+                _ => null
+            };
         }
     }
 }

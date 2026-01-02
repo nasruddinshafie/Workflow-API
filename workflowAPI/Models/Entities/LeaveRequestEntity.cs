@@ -31,12 +31,13 @@ namespace workflowAPI.Models.Entities
 
     public enum LeaveRequestStatus
     {
-        Draft,
-        Pending,
-        ManagerApproved,
-        HRApproved,
-        Approved,
+
+        LeaveRequestCreated,
+        ManagerSigning,
+        HRSigning,
         Rejected,
+        Approved,
         Cancelled
+
     }
 }

@@ -3,6 +3,7 @@ using workflowAPI.Models.Callbacks.Events;
 using workflowAPI.Models.Callbacks.Requests;
 using workflowAPI.Models.Callbacks.Responses;
 using workflowAPI.Services.Callback.ActionHandler;
+using workflowAPI.Services.Callback.ConditionHandler;
 using workflowAPI.Services.Callback.WorkflowHandler;
 
 namespace workflowAPI.Services.Callback
@@ -21,15 +22,18 @@ namespace workflowAPI.Services.Callback
         private readonly ILogger<CallbackHandler> _logger;
         private readonly IWorkflowHandlerFactory _workflowHandlerFactory;
         private readonly IActionHandlerFactory _actionHandlerFactory;
+        private readonly IConditionHandlerFactory _conditionHandlerFactory;
 
         public CallbackHandler(
         ILogger<CallbackHandler> logger,
         IWorkflowHandlerFactory workflowHandlerFactory,
-        IActionHandlerFactory actionHandlerFactory)
+        IActionHandlerFactory actionHandlerFactory,
+        IConditionHandlerFactory conditionHandlerFactory)
         {
             _logger = logger;
             _workflowHandlerFactory = workflowHandlerFactory;
             _actionHandlerFactory = actionHandlerFactory;
+            _conditionHandlerFactory = conditionHandlerFactory;
         }
 
 
@@ -53,6 +57,24 @@ namespace workflowAPI.Services.Callback
             return await handler.GetActionsAsync(schemeCode);
         }
 
+        public Task<GetConditionResponse> GetAvailableConditionAsync(string schemeCode)
+        {
+            _logger.LogInformation(
+               "Getting available condition for scheme code {SchemeCode}",
+               schemeCode);
+
+            // Extract workflow type
+            var workflowType = GetWorkflowType(schemeCode);
+
+            // Get appropriate condition handler
+
+            var handler = _conditionHandlerFactory.GetHandler(workflowType);
+
+            // Delegate to handler
+
+            return handler.GetConditionsAsync(schemeCode);
+        }
+
         public async Task<ExecuteActionResponse> HandleActionExecutedAsync(ExecuteActionRequest callback)
         {
 
@@ -74,6 +96,27 @@ namespace workflowAPI.Services.Callback
             return await handler.ExecuteActionAsync(callback);
         }
 
+        public Task<ExecuteConditionResponse> HandleConditionExecutedAsync(ExecuteConditionRequest callback)
+        {
+            var processInstance = ProcessInstanceHelper.Deserialize(callback.ProcessInstance);
+
+
+            _logger.LogInformation(
+                 "Action {ActionName} executed on process {ProcessId}",
+                 callback.Name,
+                 processInstance.ParentProcessId
+                 );
+
+            // Extract workflow type
+            var workflowType = GetWorkflowType(processInstance.SchemeCode);
+
+            // Get appropriate condition handler    
+            var handler = _conditionHandlerFactory.GetHandler(workflowType);
+
+            // Delegate to handler
+            return handler.ExecuteConditionAsync(callback);
+        }
+
         public async Task HandleActivityChangedAsync(ProcessActivityChangedRequest callback)
         {
             _logger.LogInformation(
@@ -93,6 +136,8 @@ namespace workflowAPI.Services.Callback
             // Delegate to handler
             await handler.HandleActivityChangedAsync(callback);
         }
+
+        
 
         /// <summary>
         /// Handle when process status changes (state transition)
@@ -117,6 +162,24 @@ namespace workflowAPI.Services.Callback
 
             // Delegate to handler
             await handler.HandleStatusChangedAsync(callback);
+        }
+
+        /// <summary>
+        /// Handle process logs from workflow engine
+        /// Logs each process log entry for debugging and auditing
+        /// </summary>
+        public Task HandleProcessLogAsync(ProcessLogsRequest request)
+        {
+            foreach (var log in request.ProcessLogs)
+            {
+                _logger.LogInformation(
+                    "Process Log - ProcessId: {ProcessId}, Timestamp: {Timestamp}, Message: {Message}",
+                    log.ProcessId,
+                    log.Timestamp,
+                    log.Message);
+            }
+
+            return Task.CompletedTask;
         }
 
 

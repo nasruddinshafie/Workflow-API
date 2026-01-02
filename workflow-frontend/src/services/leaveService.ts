@@ -1,5 +1,5 @@
 import api from './api';
-import { LeaveRequest, LeaveStatus, LeaveApproval, LeaveType, ApiResponse } from '../types';
+import { LeaveRequest, LeaveStatus, LeaveApproval, LeaveType, PendingLeaveRequest, MyLeaveRequest, ApiResponse } from '../types';
 
 export const leaveService = {
   submitLeave: async (request: LeaveRequest): Promise<any> => {
@@ -54,6 +54,38 @@ export const leaveService = {
 
   getUserManager: async (userId: string): Promise<any> => {
     const response = await api.get<ApiResponse<any>>(`/leave/approvers/${userId}`);
+    return response.data.data;
+  },
+
+  getPendingApprovals: async (approverId: string): Promise<PendingLeaveRequest[]> => {
+    const response = await api.get<ApiResponse<PendingLeaveRequest[]>>(
+      `/leave/pending-approvals/${approverId}`
+    );
+    return response.data.data;
+  },
+
+  getMyLeaveRequests: async (userId: string): Promise<MyLeaveRequest[]> => {
+    const response = await api.get<ApiResponse<MyLeaveRequest[]>>(
+      `/leave/my-requests/${userId}`
+    );
+    return response.data.data;
+  },
+
+  executeCommand: async (
+    leaveId: string,
+    command: string,
+    identityId: string,
+    parameters?: Record<string, any>
+  ): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>(
+      `/leave/${leaveId}/execute-command`,
+      {
+        processId: leaveId,
+        command: command,
+        identityId: identityId,
+        parameters: parameters || {},
+      }
+    );
     return response.data.data;
   },
 };

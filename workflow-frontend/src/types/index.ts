@@ -73,6 +73,74 @@ export interface LeaveApproval {
   approved: boolean;
 }
 
+export interface CommandParameter {
+  isRequired: boolean;
+  parameterName: string;
+  localizedName: string;
+  typeName: string;
+  defaultValue?: string;
+}
+
+export interface WorkflowCommand {
+  commandName: string;
+  localizedName: string;
+  validForActivityName?: string;
+  validForStateName?: string;
+  classifier?: string;
+  identities?: string[];
+  processId?: string;
+  isForSubprocess: boolean;
+  parameters?: CommandParameter[];
+}
+
+export interface PendingLeaveRequest {
+  leaveRequestId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string;
+  employeeDepartment: string;
+  leaveType: string;
+  leaveTypeCode: string;
+  leaveTypeColor?: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
+  status: string;
+  submittedDate: string;
+  workflowProcessId: string;
+  availableCommands?: WorkflowCommand[];
+  balance?: {
+    totalDays: number;
+    usedDays: number;
+    pendingDays: number;
+    availableDays: number;
+  };
+}
+
+export interface MyLeaveRequest {
+  leaveRequestId: string;
+  employeeId: string;
+  employeeName: string;
+  leaveType: string;
+  leaveTypeCode: string;
+  leaveTypeColor?: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
+  status: string;
+  submittedDate: string;
+  workflowProcessId: string;
+  availableCommands?: WorkflowCommand[];
+  balance?: {
+    totalDays: number;
+    usedDays: number;
+    pendingDays: number;
+    availableDays: number;
+  };
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;

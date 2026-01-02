@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using workflowAPI.Models.DTOs;
 using workflowAPI.Models.Entities;
 
 namespace workflowAPI.Data.Repositories
@@ -26,11 +27,9 @@ namespace workflowAPI.Data.Repositories
                 .FirstOrDefaultAsync(lr => lr.WorkflowProcessId == processId);
         }
 
-        public async Task<List<LeaveRequestEntity>> GetUserLeavesAsync(string userId, int? year = null)
+        public async Task<List<UserLeaveDto>> GetUserLeavesAsync(string userId, int? year = null)
         {
             var query = _context.LeaveRequests
-                .Include(lr => lr.LeaveType)
-                .Include(lr => lr.Approvals)
                 .Where(lr => lr.UserId == userId);
 
             if (year.HasValue)
@@ -40,6 +39,39 @@ namespace workflowAPI.Data.Repositories
 
             return await query
                 .OrderByDescending(lr => lr.CreatedDate)
+                .Select(lr => new UserLeaveDto
+                {
+                    Id = lr.Id,
+                    LeaveRequestId = lr.LeaveRequestId,
+                    UserId = lr.UserId,
+                    UserFullName = lr.User.FullName,
+                    LeaveTypeId = lr.LeaveTypeId,
+                    LeaveTypeName = lr.LeaveType.Name,
+                    LeaveTypeCode = lr.LeaveType.Code,
+                    LeaveTypeColor = lr.LeaveType.Color,
+                    StartDate = lr.StartDate,
+                    EndDate = lr.EndDate,
+                    TotalDays = lr.TotalDays,
+                    Reason = lr.Reason,
+                    SelectedApproverId = lr.SelectedApproverId,
+                    Status = lr.Status.ToString(),
+                    CurrentWorkflowState = lr.CurrentWorkflowState,
+                    WorkflowProcessId = lr.WorkflowProcessId,
+                    SubmittedDate = lr.SubmittedDate,
+                    ApprovedDate = lr.ApprovedDate,
+                    RejectedDate = lr.RejectedDate,
+                    CreatedDate = lr.CreatedDate,
+                    Approvals = lr.Approvals.Select(a => new LeaveApprovalInfoDto
+                    {
+                        Id = a.Id,
+                        ApproverId = a.ApproverId,
+                        ApproverFullName = a.Approver.FullName,
+                        ApproverRole = a.ApproverRole,
+                        Action = a.Action.ToString(),
+                        Comments = a.Comments,
+                        ActionDate = a.ActionDate
+                    }).ToList()
+                })
                 .ToListAsync();
         }
 
@@ -48,8 +80,20 @@ namespace workflowAPI.Data.Repositories
             return await _context.LeaveRequests
                 .Include(lr => lr.User)
                 .Include(lr => lr.LeaveType)
-                .Where(lr => lr.Status == LeaveRequestStatus.Pending ||
-                           lr.Status == LeaveRequestStatus.ManagerApproved)
+                
+                .OrderBy(lr => lr.SubmittedDate)
+                .ToListAsync();
+        }
+
+        public async Task<List<LeaveRequestEntity>> GetPendingLeavesByApproverAsync(string approverId)
+        {
+            return await _context.LeaveRequests
+                .Include(lr => lr.User)
+                .Include(lr => lr.LeaveType)
+                .Include(lr => lr.SelectedApprover)
+                .Include(lr => lr.Approvals)
+                .Where(lr => lr.SelectedApproverId == approverId &&
+                           (lr.Status == LeaveRequestStatus.LeaveRequestCreated || lr.Status == LeaveRequestStatus.ManagerSigning))
                 .OrderBy(lr => lr.SubmittedDate)
                 .ToListAsync();
         }

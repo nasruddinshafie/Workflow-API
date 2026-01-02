@@ -28,7 +28,7 @@ namespace workflowAPI.Services
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
 
-        public async Task<string> CreateInstanceAsync(string workflowType, string identityId, Dictionary<string, object> parameters)
+        public async Task<string> CreateInstanceAsync(string workflowType, string identityId,string leaveRequestId, Dictionary<string, object> parameters)
         {
             var schemeCode = _schemeRegistry.GetActiveScheme(workflowType);
 
@@ -38,7 +38,7 @@ namespace workflowAPI.Services
                 schemeCode,
                 identityId);
 
-            var ProcessId = Guid.NewGuid().ToString();
+            //var ProcessId = Guid.NewGuid().ToString();
 
             // Convert parameters dictionary to array format expected by OptimaJet
             var parameterArray = parameters.Select(p => new
@@ -51,7 +51,7 @@ namespace workflowAPI.Services
             var requestBody = new { schemeCode = schemeCode , parameters = parameterArray, identityId = identityId };
 
             var response = await _httpClient.PostAsJsonAsync(
-                $"/workflowapi/createinstance/{ProcessId}",
+                $"/workflowapi/createinstance/{leaveRequestId}",
                 requestBody);
 
             response.EnsureSuccessStatusCode();
@@ -82,10 +82,10 @@ namespace workflowAPI.Services
 
             _logger.LogInformation(
                 "Created workflow instance {ProcessId} with scheme {SchemeCode}",
-                ProcessId,
+                leaveRequestId,
                 schemeCode);
 
-            return ProcessId;
+            return leaveRequestId;
         }
 
         // Internal class for OptimaJet old API response format
@@ -114,14 +114,14 @@ namespace workflowAPI.Services
 
             var requestBody = new
             {
-                processId = request.ProcessId,
+               
                 command = request.Command,
                 identityId = request.IdentityId,
                 parameters = parameterArray
             };
 
             var response = await _httpClient.PostAsJsonAsync(
-                "/workflowapi/executecommand",
+                $"/workflowapi/executecommand/{request.ProcessId}",
                 requestBody);
 
             response.EnsureSuccessStatusCode();
@@ -156,8 +156,18 @@ namespace workflowAPI.Services
             processId,
             identityId);
 
-            var response = await _httpClient.GetAsync(
-                $"/workflowapi/availablecommands/{processId}?identityId={identityId}");
+            var requestBody = new
+            {
+                identityId = identityId,
+                impersonatedIdentityId = (string?)null,
+                tenantId = "",
+                token = (string?)null,
+                culture = (string?)null
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                $"/workflowapi/getavailablecommands/{processId}",
+                requestBody);
 
             response.EnsureSuccessStatusCode();
 
@@ -177,12 +187,20 @@ namespace workflowAPI.Services
                 throw new Exception($"Workflow Server error: {errorMsg}");
             }
 
-            // Parse the data object into CommandsResponse
+            // Parse the data array into List<CommandResponse>
             var dataJson = JsonSerializer.Serialize(wrappedResult.Data, _jsonOptions);
-            var result = JsonSerializer.Deserialize<CommandsResponse>(dataJson, _jsonOptions);
+            var commandsList = JsonSerializer.Deserialize<List<CommandResponse>>(dataJson, _jsonOptions);
 
-            if (result == null)
+            if (commandsList == null)
                 throw new Exception("Failed to deserialize commands data");
+
+            var result = new CommandsResponse
+            {
+                Data = commandsList,
+                Success = wrappedResult.Success,
+                Error = wrappedResult.Error,
+                Message = wrappedResult.Message
+            };
 
             _logger.LogDebug(
                 "Found {Count} available commands for {ProcessId}",
@@ -284,6 +302,34 @@ namespace workflowAPI.Services
 
             return response;
 
+        }
+
+        public async Task WriteLogAsync(string message, Dictionary<string, object>? additionalParameters = null)
+        {
+            _logger.LogDebug("Writing log to Workflow Server: {Message}", message);
+
+            var requestBody = new WriteLogRequest
+            {
+                Message = message,
+                AdditionalParameters = additionalParameters,
+                Token = null // Token can be set if needed for authentication
+            };
+
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    "/workflowapi/loginfo",
+                    requestBody);
+
+                response.EnsureSuccessStatusCode();
+
+                _logger.LogDebug("Log written successfully to Workflow Server");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to write log to Workflow Server: {Message}", message);
+                // Don't throw - logging to workflow server is not critical
+            }
         }
     }
 }

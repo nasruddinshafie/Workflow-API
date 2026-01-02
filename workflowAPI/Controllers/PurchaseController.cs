@@ -47,6 +47,7 @@ namespace workflowAPI.Controllers
                 var processId = await _workflowService.CreateInstanceAsync(
                     "PurchaseOrder",
                     request.RequestorId,
+                    "PurchaseOrId",
                     parameters);
 
 

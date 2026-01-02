@@ -45,7 +45,7 @@ namespace workflowAPI.Services
                 TotalDays = totalDays,
                 Reason = dto.Reason,
                 SelectedApproverId = dto.SelectedApproverId,
-                Status = LeaveRequestStatus.Draft,
+                Status = LeaveRequestStatus.LeaveRequestCreated,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -67,9 +67,19 @@ namespace workflowAPI.Services
             return await _unitOfWork.Leaves.GetByIdAsync(id);
         }
 
-        public async Task<List<LeaveRequestEntity>> GetUserLeavesAsync(string userId, int? year = null)
+        public async Task<List<UserLeaveDto>> GetUserLeavesAsync(string userId, int? year = null)
         {
             return await _unitOfWork.Leaves.GetUserLeavesAsync(userId, year);
+        }
+
+        public async Task<List<LeaveRequestEntity>> GetPendingApprovalsAsync(string approverId)
+        {
+            return await _unitOfWork.Leaves.GetPendingLeavesByApproverAsync(approverId);
+        }
+
+        public async Task<List<LeaveRequestEntity>> GetPendingLeavesAsync()
+        {
+            return await _unitOfWork.Leaves.GetPendingLeavesAsync();
         }
 
         public async Task UpdateLeaveStatusAsync(string leaveRequestId, LeaveRequestStatus status)
@@ -85,7 +95,7 @@ namespace workflowAPI.Services
 
             switch (status)
             {
-                case LeaveRequestStatus.Pending:
+                case LeaveRequestStatus.LeaveRequestCreated:
                     leaveRequest.SubmittedDate = DateTime.UtcNow;
                     break;
                 case LeaveRequestStatus.Approved:

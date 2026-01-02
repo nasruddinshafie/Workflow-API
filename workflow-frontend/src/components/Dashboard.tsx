@@ -3,7 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { LeaveBalance } from '../types';
 import { leaveBalanceService } from '../services/leaveBalanceService';
 import LeaveRequestForm from './LeaveRequestForm';
+import PendingApprovals from './PendingApprovals';
 import './Dashboard.css';
+import MyLeaveRequests from './MyLeaveRequests';
 
 const Dashboard: React.FC = () => {
   const { currentUser, setCurrentUser } = useAuth();
@@ -66,16 +68,13 @@ const Dashboard: React.FC = () => {
               <span className="nav-icon">📋</span>
               My Requests
             </button>
-            {(currentUser.roles.includes('Manager' as any) ||
-              currentUser.roles.includes('HRManager' as any)) && (
-              <button
+             <button
                 className={`nav-item ${selectedView === 'approvals' ? 'active' : ''}`}
                 onClick={() => setSelectedView('approvals')}
               >
                 <span className="nav-icon">✓</span>
                 Approvals
               </button>
-            )}
           </nav>
 
           <div className="leave-balances">
@@ -116,8 +115,8 @@ const Dashboard: React.FC = () => {
 
         <main className="main-content">
           {selectedView === 'request' && <LeaveRequestForm />}
-          {selectedView === 'history' && <div>Leave History Component - Coming Soon</div>}
-          {selectedView === 'approvals' && <div>Approvals Component - Coming Soon</div>}
+          {selectedView === 'history' && <MyLeaveRequests/> }
+          {selectedView === 'approvals' && <PendingApprovals />}
         </main>
       </div>
     </div>

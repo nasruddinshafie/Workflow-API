@@ -174,5 +174,7 @@ namespace workflowAPI.Services
 
             _logger.LogInformation("Initialized leave balances for {Count} users for year {Year}", count, year);
         }
+
+      
     }
 }
